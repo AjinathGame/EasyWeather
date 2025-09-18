@@ -22,6 +22,7 @@ const Home = () => {
 
   const loaddata = async (city) => {
     if (!city) return;
+    setnotfound(false);
     try {
       const result = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city},in&units=metric&appid=c329b4662e7740c1a3439353f887b2d1`)
 
@@ -43,6 +44,8 @@ const Home = () => {
       setData({});
     }
   }, [notfound]);
+
+  document.title = `EasyWeather - ${input}`
 
   return (
     <div className='h-screen w-screen bg-[#0d1b2a]'>
