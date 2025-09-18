@@ -7,6 +7,7 @@ const Home = () => {
 
   const [data, setData] = useState({});
   const [input, setinput] = useState('')
+  const [notfound, setnotfound] = useState(false)
 
 
 
@@ -17,10 +18,22 @@ const Home = () => {
 
       setData(result.data);
       console.log(result.data);
+      if(!result.data){
+        setnotfound(true)
+      }
+      else{
+        setnotfound(false)
+      }
+      
+
     } catch (error) {
 
     }
 
+  }
+
+  if (notfound) {
+    return alert('City Not Found')
   }
 
 
@@ -48,7 +61,7 @@ const Home = () => {
 
             </div>
             <div className='h-[100%] w-[50%] rounded-r-2xl'>
-              <h3 className='text-center m-auto mt-[20px] text-2xl text-white '>{data.name}, IN</h3>
+              <h3 className='text-center m-auto mt-[20px] text-2xl text-white '>📍{data.name}, IN</h3>
               <h1 className='text-center text-white'>---</h1>
               <h3 className='text-center m-auto mt-[10px] text-xl text-white '>
                 Feel like : <br /> {data.main ? `${data.main.feels_like} °C` : "--"}
@@ -111,6 +124,32 @@ const Home = () => {
           </div>
         </div>
         <div className='h-[60vh] w-[35vw] bg-[#1b263b] rounded-2xl'>
+          <div className='h-[50%] w-[100%] flex  items-center'>
+            <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col '>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Wind Status</h3>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.wind ? `${data.wind.speed} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+              <h3 className='text-white text-2xl text-center mt-[20px]'>WSW</h3>
+            </div>
+            <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col gap-[10px]'>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Humidity</h3>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.main ? `${data.main.humidity} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+
+
+            </div>
+          </div>
+          <div className='h-[50%] w-[100%] flex  items-center'>
+            <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col '>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Pressure</h3>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.main ? `${data.main.pressure} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+
+
+            </div>
+            <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col gap-[10px]'>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Visibility</h3>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.visibility ? `${data.visibility} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+
+            </div>
+          </div>
 
         </div>
       </div>
