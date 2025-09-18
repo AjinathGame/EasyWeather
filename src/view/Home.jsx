@@ -2,6 +2,17 @@ import axios from 'axios'
 import Navbar from '../components/Navbar'
 import React, { useEffect, useState } from 'react'
 
+const formatTime = (timestamp) => {
+  if (!timestamp) return "--";
+  const date = new Date(timestamp * 1000);
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours %= 12;
+  hours = hours || 12; // the hour '0' should be '12'
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+  return `${hours}:${minutesStr} ${ampm}`;
+};
 
 const Home = () => {
 
@@ -9,33 +20,29 @@ const Home = () => {
   const [input, setinput] = useState('')
   const [notfound, setnotfound] = useState(false)
 
-
-
-
   const loaddata = async (city) => {
+    if (!city) return;
     try {
-      let result = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city},in&units=metric&appid=c329b4662e7740c1a3439353f887b2d1`)
+      const result = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city},in&units=metric&appid=c329b4662e7740c1a3439353f887b2d1`)
 
       setData(result.data);
+      setnotfound(false);
       console.log(result.data);
-      if(!result.data){
-        setnotfound(true)
-      }
-      else{
-        setnotfound(false)
-      }
-      
-
     } catch (error) {
-
+      if (error.response && error.response.status === 404) {
+        setnotfound(true)
+      } else {
+        console.error("Error fetching weather data:", error);
+      }
     }
-
   }
 
-  if (notfound) {
-    return alert('City Not Found')
-  }
-
+  useEffect(() => {
+    if (notfound) {
+      alert('City Not Found');
+      setData({});
+    }
+  }, [notfound]);
 
   return (
     <div className='h-screen w-screen bg-[#0d1b2a]'>
@@ -124,30 +131,40 @@ const Home = () => {
           </div>
         </div>
         <div className='h-[60vh] w-[35vw] bg-[#1b263b] rounded-2xl'>
-          <div className='h-[50%] w-[100%] flex  items-center'>
+          <div className='h-[33%] w-[100%] flex  items-center'>
             <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col '>
               <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Wind Status</h3>
-              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.wind ? `${data.wind.speed} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
-              <h3 className='text-white text-2xl text-center mt-[20px]'>WSW</h3>
+              <h1 className='text-white text-4xl text-center mt-[10px]'>{data.wind ? `${data.wind.speed} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+              <h3 className='text-white text-2xl text-center mt-[5px]'>WSW</h3>
             </div>
             <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col gap-[10px]'>
               <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Humidity</h3>
-              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.main ? `${data.main.humidity} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.main ? `${data.main.humidity} ` : "--"}<span className='text-white text-[1rem] '>%</span></h1>
 
 
             </div>
           </div>
-          <div className='h-[50%] w-[100%] flex  items-center'>
+          <div className='h-[33%] w-[100%] flex  items-center'>
             <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col '>
               <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Pressure</h3>
-              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.main ? `${data.main.pressure} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.main ? `${data.main.pressure} ` : "--"}<span className='text-white text-[1rem] '>hPa</span></h1>
 
 
             </div>
             <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col gap-[10px]'>
               <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Visibility</h3>
-              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.visibility ? `${data.visibility} ` : "--"}<span className='text-white text-[1rem] '>km/h</span></h1>
+              <h1 className='text-white text-4xl text-center mt-[15px]'>{data.visibility ? `${(data.visibility / 1000).toFixed(1)} ` : "--"}<span className='text-white text-[1rem] '>km</span></h1>
 
+            </div>
+          </div>
+          <div className='h-[33%] w-[100%] flex  items-center'>
+            <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col '>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Sunrise</h3>
+              <h1 className='text-white text-4xl text-center mt-[25px]'>{data.sys ? formatTime(data.sys.sunrise) : "--"}</h1>
+            </div>
+            <div className='h-[80%] w-[45%] ml-[20px] bg-[#0d1b2a] rounded-2xl flex flex-col gap-[10px]'>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>Sunset</h3>
+              <h1 className='text-white text-4xl text-center mt-[15px]'>{data.sys ? formatTime(data.sys.sunset) : "--"}</h1>
             </div>
           </div>
 
