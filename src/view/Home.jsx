@@ -48,7 +48,7 @@ const Home = () => {
   document.title = `EasyWeather - ${input}`
 
   return (
-    <div className='h-screen w-screen bg-[#0d1b2a]'>
+    <div className='h-auto w-screen bg-[#0d1b2a] pb-20'>
       <Navbar />
       <div className=' flex top-0'>
         <div className='h-[70px] w-[90vw]  md:w-[60vw] lg:w-[45vw] xl:w-[35vw] p-[15px] bg-gray-400  flex justify-center lg:justify-evenly m-auto mt-[50px] lg:p-[15px] gap-2 rounded-full items-center px-4'>
@@ -172,6 +172,10 @@ const Home = () => {
           </div>
 
         </div>
+      </div>
+      <div className='h-[80vh] w-[80vw] m-auto mt-20  rounded-2xl overflow-hidden'>
+        {data.coord ? (
+          <iframe className='h-full w-full' title={`${data.name} location map`} src={`https://maps.google.com/maps?q=${data.coord.lat},${data.coord.lon}&output=embed`} ></iframe> ) : (<div className="h-full w-full flex justify-center items-center bg-[#1b263b]"><p className="text-white text-xl">Search for a city to view it on the map</p></div> )}
       </div>
 
     </div>
