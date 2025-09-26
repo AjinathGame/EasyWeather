@@ -1,6 +1,6 @@
 import axios from 'axios'
 import Navbar from '../components/Navbar'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 
 const formatTime = (timestamp) => {
   if (!timestamp) return "--";
@@ -9,26 +9,84 @@ const formatTime = (timestamp) => {
   const minutes = date.getMinutes();
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours %= 12;
-  hours = hours || 12; // the hour '0' should be '12'
+  hours = hours || 12; 
   const minutesStr = minutes < 10 ? '0' + minutes : minutes;
   return `${hours}:${minutesStr} ${ampm}`;
+};
+
+const getDayOfWeek = (timestamp) => {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const date = new Date(timestamp * 1000);
+  return days[date.getDay()];
+};
+
+const getWeatherIcon = (iconCode) => {
+  
+  switch (iconCode.slice(0, 2)) {
+    case '01': return '☀️'; 
+    case '02': return '🌤️'; 
+    case '03': return '☁️'; 
+    case '04': return '☁️'; 
+    case '09': return '🌧️'; 
+    case '10': return '🌦️'; 
+    case '11': return '⛈️'; 
+    case '13': return '🌨️'; 
+    case '50': return '🌫️'; 
+    default: return '🌡️';
+  }
 };
 
 const Home = () => {
 
   const [data, setData] = useState({});
+  const [forecastData, setForecastData] = useState([]);
   const [input, setinput] = useState('')
   const [notfound, setnotfound] = useState(false)
 
-  const loaddata = async (city) => {
+  const processForecastData = (list) => {
+    const dailyData = {};
+
+    list.forEach(item => {
+      const day = new Date(item.dt * 1000).toISOString().split('T')[0];
+      if (!dailyData[day]) {
+        dailyData[day] = {
+          temps: [],
+          icons: {},
+          dt: item.dt,
+        };
+      }
+      dailyData[day].temps.push(item.main.temp);
+      const icon = item.weather[0].icon;
+      dailyData[day].icons[icon] = (dailyData[day].icons[icon] || 0) + 1;
+    });
+
+    return Object.values(dailyData).map(dayData => {
+      const mostCommonIcon = Object.keys(dayData.icons).reduce((a, b) => dayData.icons[a] > dayData.icons[b] ? a : b);
+      return {
+        dt: dayData.dt,
+        temp_max: Math.round(Math.max(...dayData.temps)),
+        temp_min: Math.round(Math.min(...dayData.temps)),
+        icon: mostCommonIcon,
+      };
+    }).slice(0, 7); // Get up to 7 days
+  };
+
+  const loaddata = useCallback(async (city) => {
     if (!city) return;
     setnotfound(false);
-    try {
-      const result = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city},in&units=metric&appid=c329b4662e7740c1a3439353f887b2d1`)
+    const apiKey = 'c329b4662e7740c1a3439353f887b2d1';
+    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city},in&units=metric&appid=${apiKey}`;
+    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${city},in&units=metric&appid=${apiKey}`;
 
-      setData(result.data);
+    try {
+      const [currentWeatherResponse, forecastResponse] = await Promise.all([
+        axios.get(currentWeatherUrl),
+        axios.get(forecastUrl)
+      ]);
+
+      setData(currentWeatherResponse.data);
+      setForecastData(processForecastData(forecastResponse.data.list));
       setnotfound(false);
-      console.log(result.data);
     } catch (error) {
       if (error.response && error.response.status === 404) {
         setnotfound(true)
@@ -36,14 +94,19 @@ const Home = () => {
         console.error("Error fetching weather data:", error);
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (notfound) {
-      alert('City Not Found');
+      alert('City Not Found' );
       setData({});
+      setForecastData([]);
     }
   }, [notfound]);
+
+  useEffect(() => {
+    loaddata('Delhi'); 
+  }, [loaddata]);
 
   document.title = `EasyWeather - ${input}`
 
@@ -63,7 +126,7 @@ const Home = () => {
           <div className='flex flex-col md:flex-row gap-4'>
             <div className='h-[180px] w-full md:w-[330px] bg-[#0d1b2a] rounded-2xl flex justify-between'>
               <div className='h-full w-1/2 bg-gradient-to-br from-[#2e54ff] to-[#962dff] rounded-l-2xl flex flex-col justify-center items-center'>
-                <h1 className='sun text-6xl'>🌤️</h1>
+                <h1 className='sun text-6xl'>{data.weather ? getWeatherIcon(data.weather[0].icon) : '🌤️'}</h1>
 
                 <h4 className='text-center font-bold text-xl text-white mt-2'>
                   {data.main ? `${data.main.temp} °C` : "--"}
@@ -71,7 +134,7 @@ const Home = () => {
 
               </div>
               <div className='h-full w-1/2 rounded-r-2xl flex flex-col justify-center items-center'>
-                <h3 className='text-center text-2xl text-white'>📍{data.name || 'City'}, IN</h3>
+                <h3 className='text-center text-2xl text-white px-2 truncate'>📍{data.name || 'City'}, IN</h3>
                 <h1 className='text-center text-white'>---</h1>
                 <h3 className='text-center text-xl text-white mt-2'>
                   Feels like: <br /> {data.main ? `${data.main.feels_like} °C` : "--"}
@@ -91,42 +154,15 @@ const Home = () => {
             </div>
           </div>
           <div className='h-auto w-full rounded-2xl flex overflow-x-auto gap-2 mt-4 p-2'>
-            {/* 7-day forecast */}
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-start items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[30px]'>Sun</h3>
-              <h1 className='text-4xl mt-[10px]'>☀️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[20px]'>Mon</h3>
-              <h1 className='text-4xl mt-[10px]'>🌦️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[20px]'>Tue</h3>
-              <h1 className='text-4xl mt-[10px]'>🌧️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[20px]'>Wed</h3>
-              <h1 className='text-4xl mt-[10px]'>🌧️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[20px]'>Thu</h3>
-              <h1 className='text-4xl mt-[10px]'>🌨️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[20px]'>Fri</h3>
-              <h1 className='text-4xl mt-[10px]'>☀️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
-            <div className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
-              <h3 className='text-white text-xl font-bold mt-[20px]'>Sat</h3>
-              <h1 className='text-4xl mt-[10px]'>☀️</h1>
-              <h4 className='text-white text-[1rem] mt-[20px] '>15° -3°</h4>
-            </div>
+            {forecastData.length > 0 ? forecastData.map((day, index) => (
+              <div key={index} className='h-full min-w-[100px] bg-[#0d1b2a] rounded-2xl flex justify-center items-center flex-col p-2'>
+                <h3 className='text-white text-xl font-bold mt-[20px]'>{getDayOfWeek(day.dt)}</h3>
+                <h1 className='text-4xl mt-[10px]'>{getWeatherIcon(day.icon)}</h1>
+                <h4 className='text-white text-[1rem] mt-[20px] '>{day.temp_max}° {day.temp_min}°</h4>
+              </div>
+            )) : (
+              <p className='text-white w-full text-center'>Loading forecast...</p>
+            )}
           </div>
         </div>
         <div className='h-auto w-full lg:w-[35vw] bg-[#1b263b] rounded-2xl p-4 flex flex-col gap-4'>
