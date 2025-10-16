@@ -68,10 +68,10 @@ const Home = () => {
         temp_min: Math.round(Math.min(...dayData.temps)),
         icon: mostCommonIcon,
       };
-    }).slice(0, 7); // Get up to 7 days
+    }).slice(0, 7); 
   };
 
-  const loaddata = useCallback(async (city) => {
+  const loadDataByCity = useCallback(async (city) => {
     if (!city) return;
     setnotfound(false);
     const apiKey = 'c329b4662e7740c1a3439353f887b2d1';
@@ -96,17 +96,47 @@ const Home = () => {
     }
   }, []);
 
+  const loadDataByCoords = useCallback(async (lat, lon) => {
+    if (!lat || !lon) return;
+    setnotfound(false);
+    const apiKey = 'c329b4662e7740c1a3439353f887b2d1';
+    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+
+    try {
+      const [currentWeatherResponse, forecastResponse] = await Promise.all([
+        axios.get(currentWeatherUrl),
+        axios.get(forecastUrl)
+      ]);
+
+      setData(currentWeatherResponse.data);
+      setForecastData(processForecastData(forecastResponse.data.list));
+      setnotfound(false);
+    } catch (error) {
+      console.error("Error fetching weather data by coordinates:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (notfound) {
-      alert('City Not Found' );
+      alert('City Not Found');
       setData({});
       setForecastData([]);
     }
   }, [notfound]);
 
   useEffect(() => {
-    loaddata('Delhi'); 
-  }, [loaddata]);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        loadDataByCoords(latitude, longitude);
+      },
+      (error) => {
+        console.error("Error getting user location, loading default.", error);
+        loadDataByCity('Delhi'); // Load a default city on error
+      }
+    );
+  }, [loadDataByCity, loadDataByCoords]);
 
   document.title = `EasyWeather - ${input}`
 
@@ -117,7 +147,7 @@ const Home = () => {
         <div className='h-auto w-[90vw] md:w-[60vw] lg:w-[45vw] xl:w-[35vw] p-2 bg-gray-400 flex  sm:flex-row justify-center m-auto mt-[50px] gap-2 rounded-full items-center px-4'>
           <input type='text' placeholder='Search City...' className='h-[50px] w-full rounded-full pl-[15px] outline-none bg-white' onChange={(e) => setinput(e.target.value)} />
           <button
-            className='bg-yellow-500 h-[40px] w-[120px] text-white font-bold p-[10px] rounded-full cursor-pointer' onClick={() => loaddata(input)}>Search
+            className='bg-yellow-500 h-[40px] w-[120px] text-white font-bold p-[10px] rounded-full cursor-pointer' onClick={() => loadDataByCity(input)}>Search
           </button>
         </div>
       </div>
@@ -203,8 +233,10 @@ const Home = () => {
         {data.coord ? (
           <iframe className='h-full w-full' title={`${data.name} location map`} src={`https://maps.google.com/maps?q=${data.coord.lat},${data.coord.lon}&output=embed`} ></iframe> ) : (<div className="h-full w-full flex justify-center items-center bg-[#1b263b]"><p className="text-white text-xl">Search for a city to view it on the map</p></div> )}
       </div>
-
+      
     </div>
+
+    
   )
 }
 
