@@ -6,7 +6,7 @@ import Logo from '../assets/favicon.png'
 const Navbar = () => {
   return (
     <>
-      <div className='h-auto w-screen bg-gray-900 flex flex-col sm:flex-row items-center justify-between p-4 gap-4'>
+      <div className='h-auto w-full bg-gray-900 flex flex-col sm:flex-row items-center justify-between p-4 gap-4'>
         
         <div className="flex items-center justify-center">
           <img src={Logo} alt="EasyWeather Logo" className='h-12 w-12 sm:h-14 sm:w-14' />

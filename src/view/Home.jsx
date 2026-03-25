@@ -1,6 +1,8 @@
 import axios from 'axios'
 import Navbar from '../components/Navbar'
 import React, { useCallback, useEffect, useState } from 'react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+
 
 const formatTime = (timestamp) => {
   if (!timestamp) return "--";
@@ -9,7 +11,7 @@ const formatTime = (timestamp) => {
   const minutes = date.getMinutes();
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours %= 12;
-  hours = hours || 12; 
+  hours = hours || 12;
   const minutesStr = minutes < 10 ? '0' + minutes : minutes;
   return `${hours}:${minutesStr} ${ampm}`;
 };
@@ -21,27 +23,34 @@ const getDayOfWeek = (timestamp) => {
 };
 
 const getWeatherIcon = (iconCode) => {
-  
+
   switch (iconCode.slice(0, 2)) {
-    case '01': return '☀️'; 
-    case '02': return '🌤️'; 
-    case '03': return '☁️'; 
-    case '04': return '☁️'; 
-    case '09': return '🌧️'; 
-    case '10': return '🌦️'; 
-    case '11': return '⛈️'; 
-    case '13': return '🌨️'; 
-    case '50': return '🌫️'; 
+    case '01': return '☀️';
+    case '02': return '🌤️';
+    case '03': return '☁️';
+    case '04': return '☁️';
+    case '09': return '🌧️';
+    case '10': return '🌦️';
+    case '11': return '⛈️';
+    case '13': return '🌨️';
+    case '50': return '🌫️';
     default: return '🌡️';
   }
 };
 
 const Home = () => {
 
+
+
+
+
   const [data, setData] = useState({});
   const [forecastData, setForecastData] = useState([]);
+  const [coords, setCoords] = useState(null);
   const [input, setinput] = useState('')
   const [notfound, setnotfound] = useState(false)
+  const [listening, setListening] = useState(false);
+  const [aqi, setAqi] = useState(null);
 
   const processForecastData = (list) => {
     const dailyData = {};
@@ -68,7 +77,7 @@ const Home = () => {
         temp_min: Math.round(Math.min(...dayData.temps)),
         icon: mostCommonIcon,
       };
-    }).slice(0, 7); 
+    }).slice(0, 7);
   };
 
   const loadDataByCity = useCallback(async (city) => {
@@ -104,10 +113,17 @@ const Home = () => {
     const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
 
     try {
-      const [currentWeatherResponse, forecastResponse] = await Promise.all([
+      const aqiUrl = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`;
+
+      const [currentWeatherResponse, forecastResponse, aqiResponse] = await Promise.all([
         axios.get(currentWeatherUrl),
-        axios.get(forecastUrl)
+        axios.get(forecastUrl),
+        axios.get(aqiUrl)
       ]);
+
+      setData(currentWeatherResponse.data);
+      setForecastData(processForecastData(forecastResponse.data.list));
+      setAqi(aqiResponse.data.list[0].main.aqi);
 
       setData(currentWeatherResponse.data);
       setForecastData(processForecastData(forecastResponse.data.list));
@@ -118,6 +134,42 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    let watchId = null;
+    let pollInterval = null;
+
+    const startPolling = (latitude, longitude) => {
+      loadDataByCoords(latitude, longitude);
+
+      pollInterval = setInterval(() => {
+        loadDataByCoords(latitude, longitude);
+      }, 300000);
+    };
+
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setCoords({ latitude, longitude });
+          startPolling(latitude, longitude);
+        },
+        (error) => {
+          console.error('Error watching position, loading default.', error);
+          loadDataByCity('Delhi');
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+      );
+    } else {
+      loadDataByCity('Delhi');
+    }
+
+    return () => {
+      if (watchId !== null && navigator.geolocation)
+        navigator.geolocation.clearWatch(watchId);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [loadDataByCity, loadDataByCoords]);
+
+  useEffect(() => {
     if (notfound) {
       alert('City Not Found');
       setData({});
@@ -125,30 +177,165 @@ const Home = () => {
     }
   }, [notfound]);
 
+
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
+    let watchId = null;
+    let pollInterval = null;
+
+    const startPolling = (latitude, longitude) => {
+
+      loadDataByCoords(latitude, longitude);
+
+
+      pollInterval = setInterval(() => {
         loadDataByCoords(latitude, longitude);
-      },
-      (error) => {
-        console.error("Error getting user location, loading default.", error);
-        loadDataByCity('Delhi'); // Load a default city on error
-      }
-    );
+      }, 300000);
+    };
+
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setCoords({ latitude, longitude });
+          startPolling(latitude, longitude);
+        },
+        (error) => {
+          console.error('Error watching position, loading default.', error);
+          loadDataByCity('Delhi');
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+      );
+    } else {
+      console.warn('Geolocation not supported, loading default city.');
+      loadDataByCity('Delhi');
+    }
+
+    return () => {
+      if (watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId);
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [loadDataByCity, loadDataByCoords]);
 
-  document.title = `EasyWeather - ${input}`
+  useEffect(() => {
+    const titleCity = input && input.trim().length > 0 ? input.trim() : (data.name || 'EasyWeather');
+    document.title = `EasyWeather - ${titleCity}`;
+  }, [input, data.name]);
+
+  const getBackground = () => {
+    if (!data.weather) return "bg-[#0d1b2a]";
+
+    const condition = data.weather[0].main;
+    console.log("Weather Condition:", condition);
+    switch (condition) {
+      case "Clear":
+        return "bg-gradient-to-br from-yellow-300 to-orange-400";
+
+      case "Rain":
+        return "bg-gradient-to-br from-blue-700 to-blue-900";
+
+      case "Clouds":
+        return "bg-gradient-to-br from-gray-400 to-gray-700";
+
+      case "Thunderstorm":
+        return "bg-gradient-to-br from-purple-800 to-black";
+
+      case "Snow":
+        return "bg-gradient-to-br from-blue-100 to-white";
+
+      default:
+        return "bg-[#0d1b2a]";
+    }
+  };
+
+  const chartData = forecastData.map(day => ({
+    day: getDayOfWeek(day.dt),
+    temp: day.temp_max
+  }));
+
+  const startVoiceSearch = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Your browser does not support voice recognition");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "en-IN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setListening(true);
+      console.log("🎤 Listening...");
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+      console.log("🎤 Stopped listening");
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript.trim();
+      console.log("You said:", transcript);
+
+      let city = transcript
+        .toLowerCase()
+        .replace(/[^a-zA-Z\s]/g, "")
+        .replace(/weather|in|today/gi, "")
+        .trim();
+
+
+      setinput(city);
+      loadDataByCity(city);
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Voice error:", event.error);
+      setListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const getAQILabel = (aqi) => {
+    switch (aqi) {
+      case 1: return { label: "Good 😊", color: "text-green-400" };
+      case 2: return { label: "Fair 🙂", color: "text-yellow-400" };
+      case 3: return { label: "Moderate 😐", color: "text-orange-400" };
+      case 4: return { label: "Poor 😷", color: "text-red-400" };
+      case 5: return { label: "Very Poor ☠️", color: "text-purple-500" };
+      default: return { label: "--", color: "text-white" };
+    }
+  };
 
   return (
-    <div className='h-auto min-h-screen w-screen bg-[#0d1b2a] pb-20'>
+    <div className={`min-h-screen ${getBackground()} p-5 transition-all duration-700`}>
       <Navbar />
       <div className=' flex top-0'>
-        <div className='h-auto w-[90vw] md:w-[60vw] lg:w-[45vw] xl:w-[35vw] p-2 bg-gray-400 flex  sm:flex-row justify-center m-auto mt-[50px] gap-2 rounded-full items-center px-4'>
-          <input type='text' placeholder='Search City...' className='h-[50px] w-full rounded-full pl-[15px] outline-none bg-white' onChange={(e) => setinput(e.target.value)} />
+        <div className='h-auto w-[90vw] md:w-[60vw]  lg:w-[45vw] xl:w-[35vw] p-2 bg-gray-400 flex  sm:flex-row justify-center m-auto mt-[50px] relative gap-2 rounded-full items-center px-4'>
+          <input type='text' placeholder='Search City...' className='h-[50px] w-full rounded-full pl-[15px] outline-none bg-white' value={input} onChange={(e) => setinput(e.target.value)} onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              loadDataByCity(input.trim());
+            }
+          }} />
           <button
-            className='bg-yellow-500 h-[40px] w-[120px] text-white font-bold p-[10px] rounded-full cursor-pointer' onClick={() => loadDataByCity(input)}>Search
+            onClick={startVoiceSearch}
+            className={`h-[50px] w-[70px]  flex items-center justify-center rounded-full text-white text-xl transition-all duration-300
+  ${listening
+                ? "bg-red-500 animate-pulse scale-110 shadow-lg shadow-red-500/50"
+                : "bg-green-500 hover:scale-105"}
+  `}
+          >
+            🎤
           </button>
+
+          <button
+            className='bg-yellow-500 h-[40px] w-[120px] text-white font-bold p-[10px] rounded-full cursor-pointer' onClick={() => loadDataByCity(input && input.trim())}>Search
+          </button>
+
         </div>
       </div>
       <div className='h-auto w-[95vw] md:w-[90vw] mt-[60px] m-auto flex flex-col lg:flex-row justify-evenly items-start gap-5'>
@@ -194,6 +381,25 @@ const Home = () => {
               <p className='text-white w-full text-center'>Loading forecast...</p>
             )}
           </div>
+          <div className="w-full mt-6 bg-white/10 backdrop-blur-md p-5 rounded-2xl">
+            <h2 className="text-white text-xl mb-4 text-center">
+              Temperature Trend (7 Days)
+            </h2>
+
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={chartData}>
+                <XAxis dataKey="day" stroke="#fff" />
+                <YAxis stroke="#fff" />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="temp"
+                  stroke="#facc15"
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
         <div className='h-auto w-full lg:w-[35vw] bg-[#1b263b] rounded-2xl p-4 flex flex-col gap-4'>
           <div className='flex-1 w-full flex flex-col sm:flex-row gap-4'>
@@ -227,16 +433,30 @@ const Home = () => {
               <h1 className='text-white text-4xl text-center mt-[15px]'>{data.sys ? formatTime(data.sys.sunset) : "--"}</h1>
             </div>
           </div>
+          <div className='flex-1 w-full flex flex-col sm:flex-row gap-4'>
+
+
+            <div className='h-full w-full sm:w-1/2 bg-[#0d1b2a] rounded-2xl flex flex-col p-4'>
+              <h3 className='text-gray-400 text-[1.1rem] text-center mt-[10px] font-bold'>
+                Air Quality
+              </h3>
+
+              <h1 className={`text-3xl text-center mt-[20px] ${getAQILabel(aqi).color}`}>
+                {getAQILabel(aqi).label}
+              </h1>
+            </div>
+
+          </div>
         </div>
       </div>
       <div className='h-[50vh] md:h-[80vh] w-[95vw] md:w-[90vw] m-auto mt-10 rounded-2xl overflow-hidden'>
         {data.coord ? (
-          <iframe className='h-full w-full' title={`${data.name} location map`} src={`https://maps.google.com/maps?q=${data.coord.lat},${data.coord.lon}&output=embed`} ></iframe> ) : (<div className="h-full w-full flex justify-center items-center bg-[#1b263b]"><p className="text-white text-xl">Search for a city to view it on the map</p></div> )}
+          <iframe className='h-full w-full' title={`${data.name} location map`} src={`https://maps.google.com/maps?q=${data.coord.lat},${data.coord.lon}&output=embed`} ></iframe>) : (<div className="h-full w-full flex justify-center items-center bg-[#1b263b]"><p className="text-white text-xl">Search for a city to view it on the map</p></div>)}
       </div>
-      
+
     </div>
 
-    
+
   )
 }
 
